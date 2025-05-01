@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Timestamp Validity Checker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    textarea {
+      width: 100%;
+      height: 150px;
+      margin-bottom: 20px;
+    }
+    button {
+      display: block;
+      margin-bottom: 20px;
+    }
+    .error {
+      color: red;
+    }
+    .success {
+      color: green;
+    }
+  </style>
+</head>
+<body>
+  <h1>YouTube Timestamp Validity Checker</h1>
+  <textarea id="timestamps" placeholder="Paste your timestamps here..."></textarea>
+  <div>
+    <input type="checkbox" id="checkDoubleSpace"> Check for double space after each chapter
+  </div>
+  <button onclick="validateTimestamps()">Validate</button>
+  <div id="result"></div>
+
+  <script>
+    function parseTime(timeStr) {
+      const parts = timeStr.split(':').reverse();
+      let seconds = 0;
+      for (let i = 0; i < parts.length; i++) {
+        seconds += parseInt(parts[i]) * Math.pow(60, i);
+      }
+      return seconds;
+    }
+
+    function validateTimestamps() {
+      const input = document.getElementById('timestamps').value;
+      const checkDoubleSpace = document.getElementById('checkDoubleSpace').checked;
+      const lines = input.split('\n');
+      const errors = [];
+      const timestamps = [];
+      const regex = /^(\d{1,2}:\d{2}(?::\d{2})?)\s+(.+)$/;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const match = line.match(regex);
+        if (!match) {
+          errors.push(`Invalid format at line ${i + 1}: ${line}`);
+          continue;
+        }
+
+        const timeStr = match[1];
+        const label = match[2];
+
+        const timeParts = timeStr.split(':');
+        if (timeParts.length === 3 && (timeParts[0].length > 2 || timeParts[1] >= 60 || timeParts[2] >= 60) ||
+            timeParts.length === 2 && (timeParts[0] >= 60 || timeParts[1] >= 60)) {
+          errors.push(`Invalid time at line ${i + 1}: ${timeStr}`);
+          continue;
+        }
+
+        if (checkDoubleSpace && !label.endsWith('  ')) {
+          errors.push(`Line ${i + 1} does not end with double space: ${label}`);
+        }
+
+        const timeInSeconds = parseTime(timeStr);
+        if (timestamps.length > 0 && timeInSeconds - timestamps[timestamps.length - 1] < 10) {
+          errors.push(`Gap less than 10 seconds between line ${i} and line ${i + 1}`);
+        }
+
+        timestamps.push(timeInSeconds);
+      }
+
+      const result = document.getElementById('result');
+      if (errors.length > 0) {
+        result.innerHTML = '<div class="error">' + errors.join('<br>') + '</div>';
+      } else {
+        result.innerHTML = '<div class="success">All timestamps are valid!</div>';
+      }
+    }
+  </script>
+</body>
+</html>
