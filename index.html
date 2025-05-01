@@ -1,26 +1,55 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>YouTube Timestamp Validity Checker</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       margin: 20px;
     }
+
+    .container {
+      display: flex;
+      align-items: flex-start;
+    }
+
+    .line-numbers {
+      padding: 6px;
+      background-color: #f0f0f0;
+      border-right: 1px solid #ccc;
+      text-align: right;
+      user-select: none;
+      font-family: monospace;
+      font-size: 14px;
+      line-height: 1.5em;
+    }
+
+    .line-numbers div {
+      height: 1.5em;
+    }
+
     textarea {
       width: 100%;
-      height: 150px;
-      margin-bottom: 20px;
+      resize: none;
+      padding: 6px;
+      font-family: monospace;
+      font-size: 14px;
+      line-height: 1.5em;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
     }
+
     button {
       display: block;
-      margin-bottom: 20px;
+      margin: 20px 0;
     }
+
     .error {
       color: red;
     }
+
     .success {
       color: green;
     }
@@ -28,7 +57,10 @@
 </head>
 <body>
   <h1>YouTube Timestamp Validity Checker</h1>
-  <textarea id="timestamps" placeholder="Paste your timestamps here..."></textarea>
+  <div class="container">
+    <div id="lineNumbers" class="line-numbers"></div>
+    <textarea id="timestamps" placeholder="Paste your timestamps here..." oninput="updateLineNumbers()"></textarea>
+  </div>
   <div>
     <input type="checkbox" id="checkDoubleSpace"> Check for double space after each chapter
   </div>
@@ -36,6 +68,21 @@
   <div id="result"></div>
 
   <script>
+    const textarea = document.getElementById('timestamps');
+    const lineNumbers = document.getElementById('lineNumbers');
+
+    function updateLineNumbers() {
+      const lines = textarea.value.split('\n');
+      lineNumbers.innerHTML = '';
+      const total = Math.max(lines.length, 1);
+      textarea.rows = Math.min(total, 300);
+      for (let i = 1; i <= total; i++) {
+        const line = document.createElement('div');
+        line.textContent = i;
+        lineNumbers.appendChild(line);
+      }
+    }
+
     function parseTime(timeStr) {
       const parts = timeStr.split(':').reverse();
       let seconds = 0;
@@ -46,42 +93,58 @@
     }
 
     function validateTimestamps() {
-      const input = document.getElementById('timestamps').value;
+      const input = textarea.value;
       const checkDoubleSpace = document.getElementById('checkDoubleSpace').checked;
       const lines = input.split('\n');
       const errors = [];
       const timestamps = [];
       const regex = /^(\d{1,2}:\d{2}(?::\d{2})?)\s+(.+)$/;
 
+      const highlightedLines = new Set();
+
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         const match = line.match(regex);
+        let isError = false;
+
         if (!match) {
           errors.push(`Invalid format at line ${i + 1}: ${line}`);
-          continue;
+          isError = true;
+        } else {
+          const timeStr = match[1];
+          const label = match[2];
+
+          const timeParts = timeStr.split(':');
+          if (
+            (timeParts.length === 3 && (timeParts[0].length > 2 || timeParts[1] >= 60 || timeParts[2] >= 60)) ||
+            (timeParts.length === 2 && (timeParts[0] >= 60 || timeParts[1] >= 60))
+          ) {
+            errors.push(`Invalid time at line ${i + 1}: ${timeStr}`);
+            isError = true;
+          }
+
+          if (checkDoubleSpace && !label.endsWith('  ')) {
+            errors.push(`Line ${i + 1} does not end with double space: ${label}`);
+            isError = true;
+          }
+
+          const timeInSeconds = parseTime(timeStr);
+          if (timestamps.length > 0 && timeInSeconds - timestamps[timestamps.length - 1] < 10) {
+            errors.push(`Gap less than 10 seconds between line ${i} and line ${i + 1}`);
+            isError = true;
+          }
+
+          timestamps.push(timeInSeconds);
         }
 
-        const timeStr = match[1];
-        const label = match[2];
-
-        const timeParts = timeStr.split(':');
-        if (timeParts.length === 3 && (timeParts[0].length > 2 || timeParts[1] >= 60 || timeParts[2] >= 60) ||
-            timeParts.length === 2 && (timeParts[0] >= 60 || timeParts[1] >= 60)) {
-          errors.push(`Invalid time at line ${i + 1}: ${timeStr}`);
-          continue;
-        }
-
-        if (checkDoubleSpace && !label.endsWith('  ')) {
-          errors.push(`Line ${i + 1} does not end with double space: ${label}`);
-        }
-
-        const timeInSeconds = parseTime(timeStr);
-        if (timestamps.length > 0 && timeInSeconds - timestamps[timestamps.length - 1] < 10) {
-          errors.push(`Gap less than 10 seconds between line ${i} and line ${i + 1}`);
-        }
-
-        timestamps.push(timeInSeconds);
+        if (isError) highlightedLines.add(i);
       }
+
+      // Highlight lines by modifying text with prefix markers (visual only)
+      const modifiedLines = lines.map((line, idx) => {
+        return highlightedLines.has(idx) ? `${line} 🔴` : `${line}`;
+      });
+      textarea.value = modifiedLines.join('\n');
 
       const result = document.getElementById('result');
       if (errors.length > 0) {
@@ -89,7 +152,11 @@
       } else {
         result.innerHTML = '<div class="success">All timestamps are valid!</div>';
       }
+
+      updateLineNumbers();
     }
+
+    updateLineNumbers();
   </script>
 </body>
 </html>
